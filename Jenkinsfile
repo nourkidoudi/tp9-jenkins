@@ -1,3 +1,4 @@
+@Library('ci-lib') _
 pipeline {
   agent any
 
@@ -51,27 +52,15 @@ pipeline {
 
     stage('Build image') {
       steps {
-        sh '''
-          docker build \
-            --label "org.opencontainers.image.revision=$GIT_COMMIT" \
-            -t "$IMAGE_NAME:$SHORT_SHA" .
-          echo "$IMAGE_NAME:$SHORT_SHA" > image.txt
-        '''
+        buildAndPush(image: env.IMAGE_NAME, tag: env.SHORT_SHA)
       }
     }
-
     stage('Push') {
       when {
         expression { env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main' }
       }
       steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub',
-                          usernameVariable: 'DH_USER', passwordVariable: 'DH_TOKEN')]) {
-          sh 'echo "$DH_TOKEN" | docker login -u "$DH_USER" --password-stdin'
-          sh 'docker push "$IMAGE_NAME:$SHORT_SHA"'
-          sh 'docker tag "$IMAGE_NAME:$SHORT_SHA" "$IMAGE_NAME:latest-main"'
-          sh 'docker push "$IMAGE_NAME:latest-main"'
-        }
+        buildAndPush(image: env.IMAGE_NAME, tag: env.SHORT_SHA, push: true)
       }
       post {
         always {
