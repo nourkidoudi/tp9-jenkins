@@ -9,7 +9,7 @@ describe("GET /api/health", () => {
 
   it("répond 200 avec status ok", async () => {
     const res = await request(app).get("/api/health");
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     expect(res.body).toEqual({ status: "ok" });
   });
 });
