@@ -134,6 +134,12 @@ Le job **Multibranch Pipeline** scanne GitHub et crée un job par branche et par
 
 ![Jobs main, feature et PR dans le Multibranch](captures/multibranch.png)
 
+## Défi : Shared Library Jenkins
+
+Les étapes `docker build` / `docker push` sont extraites dans une Shared Library (`ci-lib`, fichier `vars/buildAndPush.groovy`), enregistrée dans *Global Trusted Pipeline Libraries* et chargée dans le Jenkinsfile avec `@Library('ci-lib') _`.
+
+![Pipeline utilisant la Shared Library](captures/shared-library.png)
+
 ## Livrables
 
 | Fichier | Contenu |
@@ -155,3 +161,5 @@ docker build -t contact-api:test .
 ```
 
 Puis, dans Jenkins : créer le credential `dockerhub`, créer le job *Pipeline script from SCM* (ou *Multibranch Pipeline*) pointant vers ce dépôt, et lancer **Build Now**.
+
+
