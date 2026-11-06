@@ -10,6 +10,8 @@ pipeline {
 
   environment {
     IMAGE_NAME = 'nourki2003/contact-api'
+    NPM_CONFIG_CACHE = '/tmp/.npm'
+
   }
 
   stages {
