@@ -155,3 +155,5 @@ docker build -t contact-api:test .
 ```
 
 Puis, dans Jenkins : créer le credential `dockerhub`, créer le job *Pipeline script from SCM* (ou *Multibranch Pipeline*) pointant vers ce dépôt, et lancer **Build Now**.
+
+Branche de test Multibranch (feature/rate-limit-config).
