@@ -1,6 +1,3 @@
-// TP9 : Jenkinsfile déclaratif à compléter (à placer à la racine du dépôt contact-api du TP8).
-// Plugins nécessaires : Pipeline, Git, Docker Pipeline, JUnit, Credentials Binding, Workspace Cleanup.
-
 pipeline {
   agent any
 
@@ -8,63 +5,87 @@ pipeline {
     timestamps()
     timeout(time: 20, unit: 'MINUTES')
     buildDiscarder(logRotator(numToKeepStr: '10'))
-    // TODO (partie 2) : interdire les builds concurrents sur la même branche
+    disableConcurrentBuilds()
   }
 
   environment {
-      IMAGE_NAME = 'nourki2003/contact-api'
-    // TODO (partie 3) : SHORT_SHA = 7 premiers caractères de GIT_COMMIT
-    //   astuce : à calculer dans un bloc script { env.SHORT_SHA = ... } car GIT_COMMIT
-    //   n'est connu qu'après le checkout
+    IMAGE_NAME = 'nourki2003/contact-api'
   }
 
   stages {
     stage('Checkout') {
       steps {
         checkout scm
+        script {
+          env.SHORT_SHA = env.GIT_COMMIT.take(7)
+        }
+        echo "Commit : ${env.GIT_COMMIT} -> tag ${env.SHORT_SHA}"
       }
     }
 
     stage('Install') {
-      // TODO (partie 2) : exécuter ce stage dans un agent Docker node:24-alpine
-      //   agent { docker { image 'node:24-alpine'; reuseNode true } }
+      agent { docker { image 'node:24-alpine'; reuseNode true } }
       steps {
         sh 'npm ci'
       }
     }
 
     stage('Quality') {
-      // TODO (partie 2) : exécuter "Lint" et "Unit tests" en parallèle (bloc parallel)
-      steps {
-        sh 'npm test'
+      parallel {
+        stage('Lint') {
+          agent { docker { image 'node:24-alpine'; reuseNode true } }
+          steps {
+            sh 'npm run lint'
+          }
+        }
+        stage('Unit tests') {
+          agent { docker { image 'node:24-alpine'; reuseNode true } }
+          steps {
+            sh 'npx vitest run tests --exclude "tests/integration/**" --reporter=default --reporter=junit --outputFile.junit=reports/junit.xml'
+          }
+        }
       }
     }
 
     stage('Build image') {
       steps {
-        // TODO (partie 3) : construire ${IMAGE_NAME}:${SHORT_SHA} et ajouter le label
-        //   org.opencontainers.image.revision=${GIT_COMMIT}
-        echo 'TODO docker build'
+        sh '''
+          docker build \
+            --label "org.opencontainers.image.revision=$GIT_COMMIT" \
+            -t "$IMAGE_NAME:$SHORT_SHA" .
+          echo "$IMAGE_NAME:$SHORT_SHA" > image.txt
+        '''
       }
     }
 
     stage('Push') {
-      // TODO (partie 3) : uniquement sur la branche main (when { branch 'main' })
+      when {
+        expression { env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main' }
+      }
       steps {
-        // TODO (partie 3) : withCredentials([usernamePassword(credentialsId: 'dockerhub', ...)])
-        //   puis docker login --password-stdin, docker push du tag SHORT_SHA et du tag latest-main
-        echo 'TODO docker push'
+        withCredentials([usernamePassword(credentialsId: 'dockerhub',
+                          usernameVariable: 'DH_USER', passwordVariable: 'DH_TOKEN')]) {
+          sh 'echo "$DH_TOKEN" | docker login -u "$DH_USER" --password-stdin'
+          sh 'docker push "$IMAGE_NAME:$SHORT_SHA"'
+          sh 'docker tag "$IMAGE_NAME:$SHORT_SHA" "$IMAGE_NAME:latest-main"'
+          sh 'docker push "$IMAGE_NAME:latest-main"'
+        }
+      }
+      post {
+        always {
+          sh 'docker logout || true'
+        }
       }
     }
   }
 
   post {
     always {
-      // TODO (partie 2) : publier les résultats JUnit (junit 'reports/*.xml')
+      junit testResults: 'reports/*.xml', allowEmptyResults: true
       echo "Build ${currentBuild.fullDisplayName} terminé : ${currentBuild.currentResult}"
     }
     success {
-      echo 'TODO : archiver un fichier image.txt contenant le nom complet de l image (archiveArtifacts)'
+      archiveArtifacts artifacts: 'image.txt', allowEmptyArchive: true, fingerprint: true
     }
     failure {
       echo 'Le pipeline a échoué : consultez les logs du stage en rouge.'
